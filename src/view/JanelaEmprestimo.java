@@ -1,5 +1,10 @@
 package view;
+
 import javax.swing.*;
+
+import model.Livro;
+import service.LivroService;
+
 import java.awt.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -68,50 +73,76 @@ public class JanelaEmprestimo extends JFrame {
 
         verificarBtn.addActionListener(e -> {
             entrada = campoLivro.getText().trim();
-            boolean formatoValido = entrada.matches("^[A-Za-zÀ-ÿ\\s]+,\\s[A-Za-zÀ-ÿ\\s]+\\.\\d{5}$");
 
-            if (entrada.isEmpty()) {
-                statusLabel.setText("Status: Informe os dados do livro.");
-            } else if (formatoValido) {
-                statusLabel.setText("Status: Livro disponível para empréstimo.");
+            if (!entrada.contains(",")) {
+                statusLabel.setText("Status: Formato inválido. Use: Título, Autor.");
+                return;
+            }
+
+            String[] partes = entrada.split(",", 2);
+            if (partes.length < 2) {
+                statusLabel.setText("Status: Formato inválido. Use: Título, Autor.");
+                return;
+            }
+
+            String titulo = partes[0].trim();
+            String autor = partes[1].trim();
+
+            LivroService livroService = new LivroService();
+            Livro livro = livroService.buscarPorTituloEAutor(titulo, autor);
+
+            if (livro == null) {
+                statusLabel.setText("Status: Livro não encontrado.");
+            } else if (!livro.isDisponivel()) {
+                statusLabel.setText("Status: Livro indisponível no momento.");
             } else {
-                statusLabel.setText("Status: Formato inválido. Use: Título, Autor.12345");
+                statusLabel.setText("Status: Livro disponível - " + livro.getTitulo());
             }
         });
 
         solicitarBtn.addActionListener(e -> {
             entrada = campoLivro.getText().trim();
-            boolean formatoValido = entrada.matches("^.+,\\s.+\\.\\d{5}$");
 
-            if (formatoValido) {
-                String livro = entrada;
+            if (!entrada.contains(",")) {
+                statusLabel.setText("Status: Formato inválido. Use: Título, Autor.");
+                return;
+            }
 
-                if (livrosEmprestados.size() >= 5) {
-                    statusLabel.setText("Status: Limite de 5 empréstimos atingido.");
-                    return;
-                }
+            String[] partes = entrada.split(",", 2);
+            if (partes.length < 2) {
+                statusLabel.setText("Status: Formato inválido. Use: Título, Autor.");
+                return;
+            }
 
-                if (livrosEmprestados.contains(livro)) {
-                    statusLabel.setText("Status: Este livro já foi emprestado pelo aluno.");
-                    return;
-                }
+            String titulo = partes[0].trim();
+            String autor = partes[1].trim();
 
-                nomeAlunoAtual = usuario;
+            LivroService livroService = new LivroService();
+            Livro livro = livroService.buscarPorTituloEAutor(titulo, autor);
 
+            if (livro == null) {
+                statusLabel.setText("Status: Livro não encontrado.");
+                return;
+            }
+
+            if (!livro.isDisponivel()) {
+                statusLabel.setText("Status: Livro já está emprestado.");
+                return;
+            }
+
+            boolean marcado = livroService.marcarComoEmprestado(livro.getCodigo());
+            if (marcado) {
+                livrosEmprestados.add(livro.getTitulo() + ", " + livro.getAutor() + "." + livro.getCodigo());
                 agora = LocalDateTime.now();
                 String emprestado = agora.format(formatter);
                 renovadoLimite = agora.plusDays(10);
                 String renovado = renovadoLimite.format(formatter);
-
-                livrosEmprestados.add(livro);
                 atualizarStatusAluno(emprestado, renovado);
-
                 renovarBtn.setVisible(true);
                 cancelarBtn.setVisible(true);
+                statusLabel.setText("Status: Empréstimo realizado com sucesso.");
             } else {
-                statusAlunoLabel.setText("Status do Aluno: Formato de entrada inválido.");
-                renovarBtn.setVisible(false);
-                cancelarBtn.setVisible(false);
+                statusLabel.setText("Status: Erro ao registrar o empréstimo.");
             }
         });
 
@@ -143,19 +174,20 @@ public class JanelaEmprestimo extends JFrame {
                     JOptionPane.QUESTION_MESSAGE,
                     null,
                     opcoes,
-                    opcoes[0]
-            );
+                    opcoes[0]);
 
             if (escolha != null) {
                 if (escolha.equals("Cancelar todos")) {
                     livrosEmprestados.clear();
-                    statusAlunoLabel.setText("<html><b>Status do Aluno:</b><br>Todos os empréstimos foram cancelados.</html>");
+                    statusAlunoLabel
+                            .setText("<html><b>Status do Aluno:</b><br>Todos os empréstimos foram cancelados.</html>");
                     renovarBtn.setVisible(false);
                     cancelarBtn.setVisible(false);
                 } else {
                     livrosEmprestados.remove(escolha);
                     if (livrosEmprestados.isEmpty()) {
-                        statusAlunoLabel.setText("<html><b>Status do Aluno:</b><br>Todos os empréstimos foram cancelados.</html>");
+                        statusAlunoLabel.setText(
+                                "<html><b>Status do Aluno:</b><br>Todos os empréstimos foram cancelados.</html>");
                         renovarBtn.setVisible(false);
                         cancelarBtn.setVisible(false);
                     } else {
